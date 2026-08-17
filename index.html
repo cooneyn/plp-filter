@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PLP Filtering Redesign — Wide Fit Shoes</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="./ios-frame.jsx"></script>
+<style>
+*,*::before,*::after{margin:0;box-sizing:border-box}
+html,body{background:#eef0ee}
+body{font-family:var(--font-ui);-webkit-font-smoothing:antialiased;color:var(--color-text-primary)}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+::-webkit-scrollbar{height:8px;width:8px}
+::-webkit-scrollbar-thumb{background:rgba(26,39,64,0.2);border-radius:4px}
+.fade-in{animation:fadeIn 0.18s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideInRight{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes slideInUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.chip{transition:background .12s,border-color .12s}
+.opt-row:hover{background:#f6f7f6}
+.grid-fade{transition:opacity .15s ease}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useRef, useEffect } = React;
+const NAVY='#1a2740', NAVY_D='#0d1520', RED='#e63329', GREEN='#00b67a', BORDER='#dedede', MUTED='#737373';
+const F = "'Poppins', sans-serif";
+const COLOUR_SWATCH = {Grey:'#9aa0a6',Navy:'#1e2f5e',Black:'#111111',White:'#f0ece6',Brown:'#8a6a4a'};
+
+/* ── Icons ── */
+const Icon = {
+  filter:(p)=>(<svg viewBox="0 0 20 20" width={p.s||16} height={p.s||16} fill="none" stroke={p.c||NAVY} strokeWidth="1.7" strokeLinecap="round"><line x1="3" y1="5" x2="17" y2="5"/><line x1="6" y1="10" x2="14" y2="10"/><line x1="8" y1="15" x2="12" y2="15"/></svg>),
+  chevDown:(p)=>(<svg viewBox="0 0 20 20" width={p.s||12} height={p.s||12} fill="none" stroke={p.c||NAVY} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{transform:p.open?'rotate(180deg)':'none',transition:'transform .15s'}}><polyline points="5,7.5 10,12.5 15,7.5"/></svg>),
+  close:(p)=>(<svg width={p.s||16} height={p.s||16} viewBox="0 0 20 20" fill="none" stroke={p.c||NAVY} strokeWidth="2" strokeLinecap="round"><line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/></svg>),
+  check:(p)=>(<svg width={p.s||12} height={p.s||12} viewBox="0 0 16 16" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><polyline points="3,8.5 6.5,12 13,4"/></svg>),
+  star:(p)=>(<svg viewBox="0 0 24 24" width={p.s||10} height={p.s||10} fill={p.c||'#fff'}><polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/></svg>),
+  sort:(p)=>(<svg viewBox="0 0 20 20" width={p.s||14} height={p.s||14} fill="none" stroke={p.c||NAVY} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="6" x2="16" y2="6"/><line x1="4" y1="10" x2="12" y2="10"/><line x1="4" y1="14" x2="8" y2="14"/></svg>),
+  box:(p)=>(<svg viewBox="0 0 20 20" width={p.s||30} height={p.s||30} fill="none" stroke={p.c||MUTED} strokeWidth="1.3"><rect x="3" y="7" width="14" height="10" rx="1"/><path d="M3 7l7-4 7 4"/><line x1="3" y1="7" x2="10" y2="11"/><line x1="17" y1="7" x2="10" y2="11"/><line x1="10" y1="11" x2="10" y2="17"/></svg>),
+};
+
+/* ── Reference data ── */
+const SIZE_TABLE = [
+  {uk:6,eu:39},{uk:6.5,eu:40.5},{uk:7,eu:41},{uk:7.5,eu:42},{uk:8,eu:42.5},{uk:8.5,eu:43},
+  {uk:9,eu:44},{uk:9.5,eu:44.5},{uk:10,eu:45},{uk:10.5,eu:45.5},{uk:11,eu:46},{uk:11.5,eu:47},{uk:12,eu:47.5},{uk:13,eu:48.5},
+];
+const WIDTH_INFO = [
+  {code:'2E', label:'Wide'},
+  {code:'4E', label:'Extra Wide'},
+  {code:'6E', label:'Extra Wide+'},
+  {code:'8E', label:'Extra Wide++'},
+];
+const widthLabel = code => (WIDTH_INFO.find(w=>w.code===code)||{}).label || code;
+const widthShort = code => code;
+
+const BRANDS = ['New Balance','Skechers','Adidas','Padders'];
+const COLOURS = ['Grey','Navy','Black','White','Brown'];
+const FASTENINGS = ['Lace up','Velcro','Slip on'];
+const TYPES = ['Trainers','Walking Shoe'];
+const FEATURES = ['Removable Insole','Memory Foam','Breathable Mesh'];
+const PRICE_MAX = 200;
+
+const range = (a,b) => SIZE_TABLE.filter(s=>s.uk>=a && s.uk<=b).map(s=>s.uk);
+
+const PRODUCTS = [
+  {id:1,brand:'New Balance',name:'574 Core Wide Fit',price:95,widths:['2E','4E','6E','8E'],sizes:range(6,12),colour:'Grey',fastening:'Lace up',type:'Trainers',features:['Removable Insole','Breathable Mesh'],stock:'in',rating:4.8,reviews:166,img:'https://images.unsplash.com/photo-1539185441755-769473a23570?w=480&h=480&fit=crop&auto=format'},
+  {id:2,brand:'New Balance',name:'990v6 Made in UK Wide',price:185,widths:['2E','4E'],sizes:range(6,11),colour:'Navy',fastening:'Lace up',type:'Trainers',features:['Memory Foam'],stock:'in',rating:4.9,reviews:212,img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=480&h=480&fit=crop&auto=format'},
+  {id:3,brand:'Skechers',name:'Max Cushioning Elite',price:75,widths:['4E'],sizes:range(7,13),colour:'Black',fastening:'Velcro',type:'Trainers',features:['Memory Foam','Removable Insole'],stock:'in',rating:4.5,reviews:98,img:'https://images.unsplash.com/photo-1595341888016-a392ef81b7de?w=480&h=480&fit=crop&auto=format'},
+  {id:4,brand:'Skechers',name:'Go Walk Arch Fit',price:60,widths:['2E','4E','6E'],sizes:range(6,12),colour:'Grey',fastening:'Slip on',type:'Walking Shoe',features:['Breathable Mesh'],stock:'in',rating:4.6,reviews:140,img:'https://images.unsplash.com/photo-1560769629-975ec94e6a86?w=480&h=480&fit=crop&auto=format'},
+  {id:5,brand:'Padders',name:'Free Wide Fit',price:70,widths:['2E'],sizes:range(7,13),colour:'Brown',fastening:'Velcro',type:'Trainers',features:['Removable Insole'],stock:'out',rating:4.3,reviews:52,img:'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=480&h=480&fit=crop&auto=format'},
+  {id:6,brand:'New Balance',name:'530 Retro Runner Wide',price:90,widths:['2E','4E'],sizes:range(6,11),colour:'White',fastening:'Lace up',type:'Trainers',features:['Breathable Mesh'],stock:'in',rating:4.6,reviews:47,img:'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=480&h=480&fit=crop&auto=format'},
+  {id:7,brand:'Skechers',name:'Arch Fit Glide',price:85,widths:['4E','6E'],sizes:range(7,12),colour:'Navy',fastening:'Lace up',type:'Trainers',features:['Memory Foam'],stock:'in',rating:4.7,reviews:121,img:'https://images.unsplash.com/photo-1465453869711-7e174808ace9?w=480&h=480&fit=crop&auto=format'},
+  {id:8,brand:'New Balance',name:'327 Vintage Wide Fit',price:110,widths:['4E'],sizes:range(7,11),colour:'Black',fastening:'Lace up',type:'Trainers',features:['Removable Insole'],stock:'in',rating:4.7,reviews:84,img:'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=480&h=480&fit=crop&auto=format'},
+  {id:9,brand:'Adidas',name:'Runfalcon Wide',price:65,widths:['2E','4E'],sizes:range(7,11),colour:'Black',fastening:'Lace up',type:'Trainers',features:['Breathable Mesh'],stock:'in',rating:4.4,reviews:73,img:'https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=480&h=480&fit=crop&auto=format'},
+];
+
+const emptyFilters = () => ({size:new Set(),width:new Set(),brand:new Set(),colour:new Set(),fastening:new Set(),type:new Set(),features:new Set(),price:PRICE_MAX,availability:false});
+const defaultFilters = () => { const f=emptyFilters(); f.size.add(10); f.width.add('4E'); return f; };
+
+function countActive(f){
+  return f.size.size+f.width.size+f.brand.size+f.colour.size+f.fastening.size+f.type.size+f.features.size+(f.price<PRICE_MAX?1:0)+(f.availability?1:0);
+}
+function matches(p, f){
+  if(f.availability && p.stock!=='in') return false;
+  if(f.size.size && !p.sizes.some(s=>f.size.has(s))) return false;
+  if(f.width.size && !p.widths.some(w=>f.width.has(w))) return false;
+  if(f.brand.size && !f.brand.has(p.brand)) return false;
+  if(f.colour.size && !f.colour.has(p.colour)) return false;
+  if(f.fastening.size && !f.fastening.has(p.fastening)) return false;
+  if(f.type.size && !f.type.has(p.type)) return false;
+  if(f.price<PRICE_MAX && p.price>f.price) return false;
+  if(f.features.size && !p.features.some(x=>f.features.has(x))) return false;
+  return true;
+}
+function chipList(f){
+  const c=[];
+  [...f.size].sort((a,b)=>a-b).forEach(v=>c.push({facet:'size',value:v,label:`Size: UK ${v}`}));
+  [...f.width].forEach(v=>c.push({facet:'width',value:v,label:`Width: ${widthShort(v)}`}));
+  [...f.brand].forEach(v=>c.push({facet:'brand',value:v,label:v}));
+  [...f.colour].forEach(v=>c.push({facet:'colour',value:v,label:v}));
+  [...f.fastening].forEach(v=>c.push({facet:'fastening',value:v,label:v}));
+  [...f.type].forEach(v=>c.push({facet:'type',value:v,label:v}));
+  if(f.price<PRICE_MAX) c.push({facet:'price',value:f.price,label:`Under £${f.price}`});
+  [...f.features].forEach(v=>c.push({facet:'features',value:v,label:v}));
+  if(f.availability) c.push({facet:'availability',value:true,label:'In stock only'});
+  return c;
+}
+
+/* ── Shared filter-state hook ── */
+function useFilterState(){
+  const [filters,setFilters]=useState(defaultFilters());
+  const toggle=(facet,value)=>setFilters(prev=>{
+    const next={...prev};
+    if(facet==='availability'){ next.availability=!prev.availability; return next; }
+    const s=new Set(prev[facet]);
+    s.has(value)?s.delete(value):s.add(value);
+    next[facet]=s;
+    return next;
+  });
+  const remove=(facet,value)=>setFilters(prev=>{
+    if(facet==='availability') return {...prev, availability:false};
+    if(facet==='price') return {...prev, price:PRICE_MAX};
+    const s=new Set(prev[facet]); s.delete(value);
+    return {...prev,[facet]:s};
+  });
+  const setPrice = value => setFilters(prev=>({...prev, price:value}));
+  const clearAll=()=>setFilters(emptyFilters());
+  const results = useMemo(()=>PRODUCTS.filter(p=>matches(p,filters)),[filters]);
+  return {filters,toggle,remove,clearAll,results,setPrice};
+}
+
+/* ── Stars ── */
+function Stars({rating,reviews,size=11}){
+  return (<div style={{display:'flex',alignItems:'center',gap:4}}>
+    <div style={{display:'flex',gap:2}}>{[0,1,2,3,4].map(i=>(<div key={i} style={{width:size+2,height:size+2,background:GREEN,display:'flex',alignItems:'center',justifyContent:'center'}}><Icon.star s={size-2}/></div>))}</div>
+    <span style={{fontSize:size,color:'#666'}}>{rating} <span style={{color:'#aaa'}}>({reviews})</span></span>
+  </div>);
+}
+
+/* ── Product card (approved V3 layout) ── */
+function ProductCard({p}){
+  const [selSize,setSelSize]=useState(p.sizes[0]);
+  const [selWidth,setSelWidth]=useState(p.widths[0]);
+  return (<div style={{background:'#fff',border:`1px solid ${BORDER}`,fontFamily:F,display:'flex',flexDirection:'column'}}>
+    <div style={{position:'relative',aspectRatio:'1/1',background:'#eef0ec',overflow:'hidden'}}>
+      <img src={p.img} alt={p.name} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}}/>
+      <button aria-label="Add to wishlist" style={{position:'absolute',top:0,right:0,width:36,height:36,background:'#fff',border:'none',borderLeft:`1px solid ${BORDER}`,borderBottom:`1px solid ${BORDER}`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke={NAVY} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 5.5a4.5 4.5 0 00-6.36 0L10 6.64 8.86 5.5a4.5 4.5 0 00-6.36 6.36L10 19.27l7.5-7.41a4.5 4.5 0 000-6.36z"/></svg>
+      </button>
+      {p.stock==='out' && <div style={{position:'absolute',inset:0,background:'rgba(255,255,255,0.55)',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{background:NAVY,color:'#fff',fontSize:11,fontWeight:700,padding:'5px 10px',letterSpacing:'0.06em'}}>OUT OF STOCK</span></div>}
+    </div>
+    <div style={{padding:'14px 14px 14px',display:'flex',flexDirection:'column',gap:8}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:6}}>
+        <div style={{fontSize:10,color:NAVY,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em'}}>{p.brand}</div>
+        <Stars rating={p.rating} reviews={p.reviews} size={11}/>
+      </div>
+      <div style={{fontSize:14,fontWeight:600,color:NAVY,lineHeight:1.3}}>{p.name}</div>
+      <div style={{fontSize:20,fontWeight:700,color:NAVY,letterSpacing:'-0.01em'}}>£{p.price.toFixed(2)}</div>
+      <div>
+        <div style={{fontSize:10,color:MUTED,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Sizes available</div>
+        <div style={{display:'grid',gridTemplateColumns:`repeat(${Math.min(p.sizes.length,6)},1fr)`,gap:3}}>
+          {p.sizes.map(s=>(<div key={s} onClick={()=>setSelSize(s)} style={{height:24,cursor:'pointer',background:selSize===s?NAVY:'#fff',color:selSize===s?'#fff':NAVY,border:`1px solid ${selSize===s?NAVY:'#d4d4d0'}`,fontSize:10,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center'}}>{s}</div>))}
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:10,color:MUTED,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5}}>Widths available</div>
+        <div style={{display:'flex',border:`1px solid ${NAVY}`}}>
+          {p.widths.map((w,i)=>(<div key={w} onClick={()=>setSelWidth(w)} style={{flex:1,height:24,cursor:'pointer',background:selWidth===w?NAVY:'#fff',color:selWidth===w?'#fff':NAVY,fontSize:11,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',borderLeft:i>0?`1px solid ${NAVY}`:'none'}}>{widthShort(w)}</div>))}
+        </div>
+      </div>
+      <div>
+        <div style={{fontSize:10,color:MUTED,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:5,display:'flex',justifyContent:'space-between'}}>
+          <span>Colours available</span><span style={{color:NAVY,fontWeight:600}}>{p.colour}</span>
+        </div>
+        <div style={{display:'flex',gap:5}}>
+          <div style={{width:22,height:22,background:COLOUR_SWATCH[p.colour],border:p.colour==='White'?'1px solid #ccc':'1px solid transparent',outline:`1.5px solid ${NAVY}`,outlineOffset:2}}/>
+        </div>
+      </div>
+      <div style={{display:'flex',flexDirection:'column',gap:6,marginTop:4}}>
+        <button disabled={p.stock==='out'} style={{width:'100%',padding:'12px',background:p.stock==='out'?'#ccc':NAVY,color:'#fff',border:`1.5px solid ${p.stock==='out'?'#ccc':NAVY}`,fontSize:13,fontWeight:700,fontFamily:F,letterSpacing:'0.04em',textTransform:'uppercase'}}>{p.stock==='out'?'Notify me':'Add to basket'}</button>
+        <button style={{width:'100%',padding:'11px',background:'#fff',color:NAVY,border:`1.5px solid ${NAVY}`,fontSize:12,fontWeight:600,fontFamily:F,letterSpacing:'0.04em',textTransform:'uppercase'}}>See more details</button>
+      </div>
+    </div>
+  </div>);
+}
+
+/* ── Chip row (persistent, removable) ── */
+function ChipRow({filters,remove,clearAll,sticky}){
+  const chips = chipList(filters);
+  if(!chips.length) return null;
+  return (<div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',padding:'10px 0',borderTop:`1px solid ${BORDER}`}}>
+    {chips.map((c,i)=>(<button key={i} className="chip" onClick={()=>remove(c.facet,c.value)} style={{display:'flex',alignItems:'center',gap:6,background:'#e8edf4',border:`1px solid ${'#c5d0e1'}`,borderRadius:999,padding:'6px 8px 6px 12px',fontSize:12.5,fontWeight:600,color:NAVY,whiteSpace:'nowrap'}}>
+      {c.label}<Icon.close s={11} c={NAVY}/>
+    </button>))}
+    <button onClick={clearAll} style={{background:'none',border:'none',fontSize:12.5,fontWeight:700,color:RED,textDecoration:'underline',padding:'6px 4px'}}>Clear all</button>
+  </div>);
+}
+
+/* ── Priority facet: Size ── */
+function SizeGrid({filters,toggle,dense}){
+  return (<div style={{display:'grid',gridTemplateColumns:`repeat(${dense?4:6},1fr)`,gap:8}}>
+    {SIZE_TABLE.map(s=>{
+      const active=filters.size.has(s.uk);
+      return (<button key={s.uk} onClick={()=>toggle('size',s.uk)} style={{
+        display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:1,
+        padding:'8px 4px',border:`1.5px solid ${active?NAVY:BORDER}`,background:active?NAVY:'#fff',borderRadius:6,
+      }}>
+        <span style={{fontSize:14,fontWeight:700,color:active?'#fff':NAVY}}>{s.uk}</span>
+        <span style={{fontSize:9,color:active?'#c5d0e1':MUTED}}>EU {s.eu}</span>
+      </button>);
+    })}
+  </div>);
+}
+
+/* ── Priority facet: Width ── */
+function WidthGrid({filters,toggle,dense}){
+  return (<div style={{display:'grid',gridTemplateColumns:`repeat(${dense?2:4},1fr)`,gap:8}}>
+    {WIDTH_INFO.map(w=>{
+      const active=filters.width.has(w.code);
+      return (<button key={w.code} onClick={()=>toggle('width',w.code)} style={{
+        display:'flex',flexDirection:'column',alignItems:'flex-start',gap:1,textAlign:'left',
+        padding:'9px 10px',border:`1.5px solid ${active?NAVY:BORDER}`,background:active?NAVY:'#fff',borderRadius:6,
+      }}>
+        <span style={{fontSize:13,fontWeight:700,color:active?'#fff':NAVY}}>{widthShort(w.code)}</span>
+        <span style={{fontSize:10,color:active?'#c5d0e1':MUTED}}>{w.label}</span>
+      </button>);
+    })}
+  </div>);
+}
+
+/* ── Priority facet: Availability ── */
+function AvailabilityToggle({filters,toggle}){
+  const inStockCount = PRODUCTS.filter(p=>p.stock==='in').length;
+  return (<button onClick={()=>toggle('availability')} style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'10px 12px',border:`1.5px solid ${filters.availability?NAVY:BORDER}`,background:filters.availability?'#e8edf4':'#fff',borderRadius:6}}>
+    <span style={{fontSize:13,fontWeight:600,color:NAVY}}>In stock only <span style={{fontWeight:400,color:MUTED}}>({inStockCount} of {PRODUCTS.length})</span></span>
+    <span style={{width:38,height:22,borderRadius:999,background:filters.availability?NAVY:'#ccc',position:'relative',flexShrink:0,transition:'background .12s'}}>
+      <span style={{position:'absolute',top:2,left:filters.availability?18:2,width:18,height:18,borderRadius:'50%',background:'#fff',transition:'left .12s'}}/>
+    </span>
+  </button>);
+}
+
+/* ── Secondary accordion facet ── */
+function AccordionFacet({title,options,selected,onToggle,openSections,setOpen,id}){
+  const open = openSections.has(id);
+  return (<div style={{borderBottom:`1px solid ${BORDER}`}}>
+    <button onClick={()=>setOpen(id)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'12px 2px',background:'none',border:'none'}}>
+      <span style={{fontSize:13,fontWeight:600,color:'#444'}}>{title}{selected.size>0 && <span style={{color:RED,fontWeight:700}}> ({selected.size})</span>}</span>
+      <Icon.chevDown open={open} c="#888"/>
+    </button>
+    {open && <div style={{paddingBottom:10,display:'flex',flexDirection:'column',gap:1}}>
+      {options.map(opt=>{
+        const active=selected.has(opt);
+        return (<label key={opt} className="opt-row" style={{display:'flex',alignItems:'center',gap:9,padding:'6px 4px',fontSize:12.5,color:'#444',borderRadius:4}}>
+          <span onClick={()=>onToggle(opt)} style={{width:16,height:16,borderRadius:3,border:`1.5px solid ${active?NAVY:'#bbb'}`,background:active?NAVY:'#fff',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{active && <Icon.check/>}</span>
+          <span onClick={()=>onToggle(opt)} style={{flex:1}}>{opt}</span>
+        </label>);
+      })}
+    </div>}
+  </div>);
+}
+
+/* ── Full filter panel content (shared desktop drawer / mobile full-screen) ── */
+function PriceSlider({value,onChange}){
+  return (<div style={{padding:'4px 2px 12px'}}>
+    <div style={{display:'flex',justifyContent:'space-between',fontSize:12.5,fontWeight:600,color:NAVY,marginBottom:8}}>
+      <span>£0</span><span>{value>=PRICE_MAX ? `£${PRICE_MAX}+` : `Up to £${value}`}</span>
+    </div>
+    <input type="range" min="0" max={PRICE_MAX} step="5" value={value} onChange={e=>onChange(Number(e.target.value))}
+      style={{width:'100%',accentColor:NAVY}}/>
+  </div>);
+}
+
+function FilterPanelBody({filters,toggle,setPrice,dense}){
+  const [openSections,setOpenSections]=useState(new Set());
+  const setOpen = id => setOpenSections(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
+  return (<div>
+    <div style={{marginBottom:18}}>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:RED,marginBottom:8}}>Size (UK)</div>
+      <SizeGrid filters={filters} toggle={toggle} dense={dense}/>
+    </div>
+    <div style={{marginBottom:18}}>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:RED,marginBottom:8}}>Width</div>
+      <WidthGrid filters={filters} toggle={toggle} dense={dense}/>
+    </div>
+    <div style={{marginBottom:20}}>
+      <div style={{fontSize:11,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:RED,marginBottom:8}}>Availability</div>
+      <AvailabilityToggle filters={filters} toggle={toggle}/>
+    </div>
+    <div style={{height:1,background:BORDER,margin:'4px 0 6px'}}/>
+    <div style={{fontSize:10.5,fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase',color:MUTED,margin:'6px 0 2px'}}>More filters</div>
+    <AccordionFacet id="brand" title="Brand" options={BRANDS} selected={filters.brand} onToggle={v=>toggle('brand',v)} openSections={openSections} setOpen={setOpen}/>
+    <div style={{borderBottom:`1px solid ${BORDER}`}}>
+      <button onClick={()=>setOpen('price')} style={{display:'flex',alignItems:'center',justifyContent:'space-between',width:'100%',padding:'12px 2px',background:'none',border:'none'}}>
+        <span style={{fontSize:13,fontWeight:600,color:'#444'}}>Price{filters.price<PRICE_MAX && <span style={{color:RED,fontWeight:700}}> (1)</span>}</span>
+        <Icon.chevDown open={openSections.has('price')} c="#888"/>
+      </button>
+      {openSections.has('price') && <PriceSlider value={filters.price} onChange={setPrice}/>}
+    </div>
+    <AccordionFacet id="colour" title="Colour" options={COLOURS} selected={filters.colour} onToggle={v=>toggle('colour',v)} openSections={openSections} setOpen={setOpen}/>
+    <AccordionFacet id="type" title="Type" options={TYPES} selected={filters.type} onToggle={v=>toggle('type',v)} openSections={openSections} setOpen={setOpen}/>
+    <AccordionFacet id="features" title="Features" options={FEATURES} selected={filters.features} onToggle={v=>toggle('features',v)} openSections={openSections} setOpen={setOpen}/>
+    <AccordionFacet id="fastening" title="Fastening" options={FASTENINGS} selected={filters.fastening} onToggle={v=>toggle('fastening',v)} openSections={openSections} setOpen={setOpen}/>
+  </div>);
+}
+
+/* ── Zero-result state ── */
+function ZeroState({filters,remove,clearAll}){
+  const chips = chipList(filters);
+  return (<div style={{display:'flex',flexDirection:'column',alignItems:'center',textAlign:'center',padding:'56px 20px',gap:14}}>
+    <Icon.box s={40}/>
+    <div style={{fontSize:17,fontWeight:700,color:NAVY}}>No products match your filters</div>
+    <div style={{fontSize:13.5,color:'#555',maxWidth:380,lineHeight:1.5}}>
+      {chips.length ? <React.Fragment>We couldn't find any products matching {chips.map(c=>c.label).join(' + ')}. Try removing a filter below.</React.Fragment> : 'Try adjusting your filters.'}
+    </div>
+    <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center'}}>
+      {chips.map((c,i)=>(<button key={i} onClick={()=>remove(c.facet,c.value)} style={{fontSize:12.5,fontWeight:600,color:NAVY,background:'#e8edf4',border:`1px solid #c5d0e1`,borderRadius:999,padding:'7px 12px'}}>Remove {c.label} ✕</button>))}
+    </div>
+    <button onClick={clearAll} style={{marginTop:4,fontSize:13,fontWeight:700,color:'#fff',background:NAVY,border:'none',borderRadius:6,padding:'10px 18px'}}>Clear all filters</button>
+  </div>);
+}
+
+/* ═══════════════════════════════ DESKTOP ═══════════════════════════════ */
+function DesktopDrawer({open,onClose,filters,toggle,setPrice,resultCount}){
+  return (<React.Fragment>
+    {open && <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(8,12,20,0.4)',zIndex:100}}/>}
+    <div style={{position:'fixed',top:0,right:0,bottom:0,width:420,maxWidth:'92vw',background:'#fff',zIndex:101,
+      transform:open?'translateX(0)':'translateX(100%)',transition:'transform .25s cubic-bezier(.2,.8,.2,1)',
+      display:'flex',flexDirection:'column',boxShadow:'-8px 0 30px rgba(0,0,0,0.15)'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 20px',borderBottom:`1px solid ${BORDER}`}}>
+        <span style={{fontSize:18,fontWeight:700,color:NAVY}}>All Filters</span>
+        <button onClick={onClose} aria-label="Close" style={{background:'none',border:'none',display:'flex'}}><Icon.close s={20}/></button>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+        <FilterPanelBody filters={filters} toggle={toggle} setPrice={setPrice}/>
+      </div>
+      <div style={{padding:'14px 20px',borderTop:`1px solid ${BORDER}`}}>
+        <button onClick={onClose} style={{width:'100%',padding:'13px',background:NAVY,color:'#fff',border:'none',borderRadius:6,fontSize:14,fontWeight:700}}>Show {resultCount} {resultCount===1?'result':'results'}</button>
+      </div>
+    </div>
+  </React.Fragment>);
+}
+
+function QuickPill({label,active,onClick,primary}){
+  return (<button onClick={onClick} style={{display:'flex',alignItems:'center',gap:6,padding: primary ? '9px 16px' : '7px 13px',
+    border:`1.5px solid ${active?NAVY:BORDER}`,background:active?NAVY:'#fff',borderRadius:999,
+    fontSize:primary?13.5:12.5,fontWeight:primary?700:500,color:active?'#fff':NAVY,whiteSpace:'nowrap'}}>
+    {label}<Icon.chevDown s={10} c={active?'#fff':NAVY}/>
+  </button>);
+}
+
+function DesktopPLP({fs}){
+  const {filters,toggle,remove,clearAll,results,setPrice} = fs;
+  const [drawerOpen,setDrawerOpen]=useState(false);
+  const [sort,setSort]=useState('Featured');
+  return (<div style={{minHeight:'100%'}}>
+    <div style={{position:'sticky',top:0,zIndex:40,background:'#fff',borderBottom:`1px solid ${BORDER}`}}>
+      <div style={{maxWidth:1320,margin:'0 auto',padding:'0 32px'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'14px 0',flexWrap:'wrap'}}>
+          <button onClick={()=>setDrawerOpen(true)} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 16px',border:`1.5px solid ${NAVY}`,background:NAVY,borderRadius:999,fontSize:13.5,fontWeight:700,color:'#fff'}}>
+            <Icon.filter c="#fff" s={15}/>All Filters
+            {countActive(filters)>0 && <span style={{background:RED,color:'#fff',fontSize:10.5,fontWeight:700,minWidth:18,height:18,borderRadius:999,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 4px'}}>{countActive(filters)}</span>}
+          </button>
+          <div style={{width:1,height:24,background:BORDER}}/>
+          <QuickPill label="Size" active={filters.size.size>0} onClick={()=>setDrawerOpen(true)} primary/>
+          <QuickPill label="Width" active={filters.width.size>0} onClick={()=>setDrawerOpen(true)} primary/>
+          <QuickPill label="Availability" active={filters.availability} onClick={()=>setDrawerOpen(true)} primary/>
+          <div style={{width:1,height:20,background:BORDER}}/>
+          <QuickPill label="Brand" active={filters.brand.size>0} onClick={()=>setDrawerOpen(true)}/>
+          <QuickPill label="Price" active={filters.price<PRICE_MAX} onClick={()=>setDrawerOpen(true)}/>
+          <QuickPill label="Colour" active={filters.colour.size>0} onClick={()=>setDrawerOpen(true)}/>
+          <QuickPill label="Fastening" active={filters.fastening.size>0} onClick={()=>setDrawerOpen(true)}/>
+          <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:16}}>
+            <span style={{fontSize:13,color:'#555',whiteSpace:'nowrap'}}>{results.length} products</span>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <Icon.sort/>
+              <select value={sort} onChange={e=>setSort(e.target.value)} style={{border:`1px solid ${BORDER}`,borderRadius:6,padding:'7px 10px',fontSize:12.5,color:NAVY,background:'#fff'}}>
+                <option>Featured</option><option>Price: low to high</option><option>Price: high to low</option><option>Customer rating</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <ChipRow filters={filters} remove={remove} clearAll={clearAll}/>
+      </div>
+    </div>
+    <div style={{maxWidth:1320,margin:'0 auto',padding:'28px 32px 60px'}}>
+      <h1 style={{fontSize:24,fontWeight:700,color:NAVY,marginBottom:4}}>Men's Wide Fit Trainers</h1>
+      <p style={{fontSize:13,color:MUTED,marginBottom:20}}>Genuine wide and extra-wide fittings, UK sized.</p>
+      {results.length===0 ? <ZeroState filters={filters} remove={remove} clearAll={clearAll}/> :
+        <div className="grid-fade" style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:18}}>
+          {results.map(p=><ProductCard key={p.id} p={p}/>)}
+        </div>}
+    </div>
+    <DesktopDrawer open={drawerOpen} onClose={()=>setDrawerOpen(false)} filters={filters} toggle={toggle} setPrice={setPrice} resultCount={results.length}/>
+  </div>);
+}
+
+/* ═══════════════════════════════ MOBILE ═══════════════════════════════ */
+function MobileDrawer({open,onClose,filters,toggle,setPrice,resultCount}){
+  if(!open) return null;
+  return (<div className="fade-in" style={{position:'absolute',inset:0,background:'#fff',zIndex:120,display:'flex',flexDirection:'column'}}>
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',borderBottom:`1px solid ${BORDER}`}}>
+      <span style={{fontSize:16,fontWeight:700,color:NAVY}}>All Filters</span>
+      <button onClick={onClose} aria-label="Close" style={{background:'none',border:'none'}}><Icon.close s={20}/></button>
+    </div>
+    <div style={{flex:1,overflowY:'auto',padding:'14px 16px'}}>
+      <FilterPanelBody filters={filters} toggle={toggle} setPrice={setPrice} dense/>
+    </div>
+    <div style={{padding:'12px 16px',borderTop:`1px solid ${BORDER}`}}>
+      <button onClick={onClose} style={{width:'100%',padding:'13px',background:NAVY,color:'#fff',border:'none',borderRadius:6,fontSize:14,fontWeight:700}}>Show {resultCount} {resultCount===1?'result':'results'}</button>
+    </div>
+  </div>);
+}
+
+function MobilePLP({fs}){
+  const {filters,toggle,remove,clearAll,results,setPrice} = fs;
+  const [drawerOpen,setDrawerOpen]=useState(false);
+  const active = countActive(filters);
+  const chips = chipList(filters);
+  return (<div style={{position:'relative',height:'100%',overflowY:'auto',background:'#eef0ee'}}>
+    <div style={{position:'sticky',top:0,zIndex:30,background:'#fff'}}>
+      <div style={{display:'flex'}}>
+        <button onClick={()=>setDrawerOpen(true)} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:7,padding:'13px 0',background:NAVY,color:'#fff',border:'none',borderRight:'1px solid rgba(255,255,255,0.15)',fontSize:13,fontWeight:700}}>
+          <Icon.filter c="#fff" s={14}/>Filters
+          {active>0 && <span style={{background:RED,color:'#fff',fontSize:10,fontWeight:700,minWidth:16,height:16,borderRadius:999,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 4px'}}>{active}</span>}
+        </button>
+        <button style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'13px 0',background:NAVY,color:'#fff',border:'none',fontSize:13,fontWeight:700,whiteSpace:'nowrap'}}>
+          <Icon.sort c="#fff"/>Featured
+        </button>
+      </div>
+      {chips.length>0 && <div style={{padding:'8px 12px',borderBottom:`1px solid ${BORDER}`,background:'#fff'}}>
+        <div style={{display:'flex',gap:7,overflowX:'auto',paddingBottom:2}}>
+          {chips.map((c,i)=>(<button key={i} onClick={()=>remove(c.facet,c.value)} style={{display:'flex',alignItems:'center',gap:5,background:'#e8edf4',border:'1px solid #c5d0e1',borderRadius:999,padding:'5px 8px 5px 11px',fontSize:11.5,fontWeight:600,color:NAVY,whiteSpace:'nowrap',flexShrink:0}}>{c.label}<Icon.close s={10} c={NAVY}/></button>))}
+          <button onClick={clearAll} style={{flexShrink:0,background:'none',border:'none',fontSize:11.5,fontWeight:700,color:RED,textDecoration:'underline',padding:'5px 4px'}}>Clear all</button>
+        </div>
+      </div>}
+    </div>
+    <div style={{padding:'16px 14px 40px'}}>
+      <h1 style={{fontSize:19,fontWeight:700,color:NAVY,marginBottom:2}}>Men's Wide Fit Trainers</h1>
+      <p style={{fontSize:12,color:MUTED,marginBottom:14}}>{results.length} products</p>
+      {results.length===0 ? <ZeroState filters={filters} remove={remove} clearAll={clearAll}/> :
+        <div className="grid-fade" style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}}>
+          {results.map(p=><ProductCard key={p.id} p={p}/>)}
+        </div>}
+    </div>
+    <MobileDrawer open={drawerOpen} onClose={()=>setDrawerOpen(false)} filters={filters} toggle={toggle} setPrice={setPrice} resultCount={results.length}/>
+  </div>);
+}
+
+/* ═══════════════════════════════ PROTOTYPE SHELL ═══════════════════════════════ */
+function ToolBtn({active,onClick,children}){
+  return <button onClick={onClick} style={{padding:'8px 14px',borderRadius:7,border:`1.5px solid ${active?NAVY:BORDER}`,background:active?NAVY:'#fff',color:active?'#fff':NAVY,fontSize:12.5,fontWeight:600}}>{children}</button>;
+}
+
+function App(){
+  const [device,setDevice]=useState('desktop');
+  const fsDesktop = useFilterState();
+  const fsMobile = useFilterState();
+  const fs = device==='desktop' ? fsDesktop : fsMobile;
+  const demoZero = ()=>{ fs.clearAll(); setTimeout(()=>{ fs.toggle('brand','Adidas'); fs.toggle('width','6E'); },0); };
+  return (<div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+    <div style={{background:'#fff',borderBottom:`1px solid ${BORDER}`,padding:'12px 24px',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:'0.1em',color:MUTED,marginRight:6}}>PROTOTYPE</span>
+      <ToolBtn active={device==='desktop'} onClick={()=>setDevice('desktop')}>Desktop</ToolBtn>
+      <ToolBtn active={device==='mobile'} onClick={()=>setDevice('mobile')}>Mobile</ToolBtn>
+      <div style={{width:1,height:20,background:BORDER}}/>
+      <ToolBtn onClick={demoZero}>Show zero-result demo</ToolBtn>
+      <ToolBtn onClick={()=>fs.clearAll()}>Clear filters</ToolBtn>
+      <ToolBtn onClick={()=>{fs.clearAll(); setTimeout(()=>{fs.toggle('size',10); fs.toggle('width','4E');},0);}}>Reset to Size 10 + 4E</ToolBtn>
+    </div>
+    <div style={{flex:1,background:'#eef0ee',display:'flex',justifyContent:'center',padding: device==='mobile' ? '32px 0' : 0}}>
+      {device==='desktop'
+        ? <div style={{width:'100%'}}><DesktopPLP fs={fs}/></div>
+        : <IOSDevice title="Wide Fit Shoes"><MobilePLP fs={fs}/></IOSDevice>}
+    </div>
+  </div>);
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
